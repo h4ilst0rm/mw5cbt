@@ -361,22 +361,68 @@ namespace MW5.Automation
 				DeleteFile(PakOutputFile);
 			}
 
-			// Create pak response file
-			string NewContentDirectory = String.Format("\"{0}/Saved/Cooked/WindowsNoEditor/MW5Mercs/Plugins/{1}/Content/*\" \"../../../MW5Mercs/Plugins/{1}/Content/\"", ModPluginPath, ModName);
-			string SubstitutionContentDirectory = String.Format("\"{0}/Saved/Cooked/WindowsNoEditor/MW5Mercs/Plugins/{1}/{2}/*\" \"../../../MW5Mercs/Content/\"", ModPluginPath, ModName, ModSubstitutionPath);
-			string WwiseDirectory = String.Format("\"{0}/{1}/WwiseAudio/*\" \"../../../MW5Mercs/Content/WwiseAudio/\"", ModPluginPath, ModSubstitutionPath);
-			string ConfigDirectory = String.Format("\"{0}/Config/*\" \"../../../MW5Mercs/Config/\"", ModPluginPath);
-			string AssetRegistry = String.Format("\"{0}/Saved/Cooked/WindowsNoEditor/MW5Mercs/Plugins/{1}/AssetRegistry.bin\" \"../../../MW5Mercs/Plugins/{1}/\"", ModPluginPath, ModName);
-			string[] PakDirectories = new string[]
+            string cbt_config_path = String.Format("{0}/mw5cbt.json", ModPluginPath);
+            LogInformation("Begin MW5CBT config: " + cbt_config_path);
+            if (FileExists(cbt_config_path))
 			{
-				NewContentDirectory,
-				SubstitutionContentDirectory,
-				WwiseDirectory,
-				ConfigDirectory,
-				AssetRegistry
-			};
+				LogInformation("Found config");
+				// Custom packing from cbt override config
+                string InputJson = File.ReadAllText(cbt_config_path);
+                List<string> override_config = fastJSON.JSON.Instance.ToObject<List<string>>(InputJson);
 
-			WriteAllLines(PakResponseFile, PakDirectories);
+				List<string> PakDirectories = new List<string>();
+
+				string mod_override_path = String.Format("{0}/Saved/Cooked/WindowsNoEditor/MW5Mercs/Plugins/{1}/{2}/", ModPluginPath, ModName, ModSubstitutionPath);
+				string[] mod_override_dirs = Directory.GetDirectories(mod_override_path);
+                string[] mod_override_files = Directory.GetFiles(mod_override_path);
+
+				foreach (string dir in mod_override_dirs)
+                {
+                    LogInformation("Folder: " + dir);
+                    string target_folder = dir.Split('/').Last();
+                    if (override_config.Contains(target_folder))
+					{
+                        LogInformation("CBT override: " + target_folder); 
+						PakDirectories.Add(String.Format("\"{0}{1}/*\" \"../../../MW5Mercs/Plugins/{1}/Content/\"", mod_override_path, target_folder));
+                    }
+					else
+                    {
+                        LogInformation("Vanilla override: " + target_folder);
+                        PakDirectories.Add(String.Format("\"{0}{1}/*\" \"../../../MW5Mercs/Content/\"", mod_override_path, target_folder));
+                    }
+				}
+                foreach (string file in mod_override_files)
+                {
+                    LogInformation("Loose file: " + file);
+                    PakDirectories.Add(String.Format("\"{0}\" \"../../../MW5Mercs/Content/\"", file));
+                }
+
+                PakDirectories.Add(String.Format("\"{0}/Saved/Cooked/WindowsNoEditor/MW5Mercs/Plugins/{1}/Content/*\" \"../../../MW5Mercs/Plugins/{1}/Content/\"", ModPluginPath, ModName));
+                PakDirectories.Add(String.Format("\"{0}/{1}/WwiseAudio/*\" \"../../../MW5Mercs/Content/WwiseAudio/\"", ModPluginPath, ModSubstitutionPath));
+                PakDirectories.Add(String.Format("\"{0}/Config/*\" \"../../../MW5Mercs/Config/\"", ModPluginPath));
+                PakDirectories.Add(String.Format("\"{0}/Saved/Cooked/WindowsNoEditor/MW5Mercs/Plugins/{1}/AssetRegistry.bin\" \"../../../MW5Mercs/Plugins/{1}/\"", ModPluginPath, ModName));
+
+                WriteAllLines(PakResponseFile, PakDirectories.ToArray());
+            }
+            else
+            {
+                LogInformation("Non config, Fallback to default pak response file");
+                string NewContentDirectory = String.Format("\"{0}/Saved/Cooked/WindowsNoEditor/MW5Mercs/Plugins/{1}/Content/*\" \"../../../MW5Mercs/Plugins/{1}/Content/\"", ModPluginPath, ModName);
+                string SubstitutionContentDirectory = String.Format("\"{0}/Saved/Cooked/WindowsNoEditor/MW5Mercs/Plugins/{1}/{2}/*\" \"../../../MW5Mercs/Content/\"", ModPluginPath, ModName, ModSubstitutionPath);
+                string WwiseDirectory = String.Format("\"{0}/{1}/WwiseAudio/*\" \"../../../MW5Mercs/Content/WwiseAudio/\"", ModPluginPath, ModSubstitutionPath);
+                string ConfigDirectory = String.Format("\"{0}/Config/*\" \"../../../MW5Mercs/Config/\"", ModPluginPath);
+                string AssetRegistry = String.Format("\"{0}/Saved/Cooked/WindowsNoEditor/MW5Mercs/Plugins/{1}/AssetRegistry.bin\" \"../../../MW5Mercs/Plugins/{1}/\"", ModPluginPath, ModName);
+                string[] PakDirectories = new string[]
+                {
+                NewContentDirectory,
+                SubstitutionContentDirectory,
+                WwiseDirectory,
+                ConfigDirectory,
+                AssetRegistry
+                };
+
+                WriteAllLines(PakResponseFile, PakDirectories);
+            }
 
 			FileReference UnrealPakFR;
 			if (HostPlatform.Current.HostEditorPlatform == UnrealTargetPlatform.Win64)
